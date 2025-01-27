@@ -62,6 +62,7 @@ eq tok = do
 
 data ASTStmt = FunStmt String [String] [ASTStmt]
     | LetStmt String ASTExpr
+    | AssignStmt String ASTExpr
     | RetStmt ASTExpr
     | CallStmt String [ASTExpr] deriving Show
 
@@ -128,6 +129,15 @@ pstatement = do
     preturn
     <|>
     pcallStmt
+    <|>
+    passign
+
+passign :: Parser ASTStmt
+passign = do
+    i <- pident
+    eq L.Equ
+    e <- pexpr
+    return (AssignStmt i e)
 
 plet :: Parser ASTStmt
 plet = do
