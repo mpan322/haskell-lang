@@ -184,7 +184,7 @@ plet = do
 preturn :: Parser ASTStmt
 preturn = do
     eq L.Ret
-    e <- pexpr
+    e <- pexpr <|> return (ConstExpr Void)
     return (RetStmt e)
 
 pcallStmt :: Parser ASTStmt

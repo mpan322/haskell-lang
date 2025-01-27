@@ -1,6 +1,7 @@
 module Lexer where
 import Control.Applicative
 import Data.Char
+import qualified Data.Set as S
 
 -- metadata about token location in source code for errors
 type TokenData = (Int, Int)
@@ -36,6 +37,9 @@ data Token = Fun
     | Comma
     | Semi
     deriving (Show, Eq)
+
+keywords :: S.Set String
+keywords = S.fromList ["let", "return", "fn", "if", "else", "true", "false"]
 
 newtype Lexer a = Lexer { runLexer :: String -> Either LexError (String, a) }
 
@@ -104,7 +108,8 @@ token tok str = do
 tokenIdent :: Lexer Token
 tokenIdent = do
     i <- some (sat isAlpha)
-    return (Ident i)
+    if S.member i keywords then empty
+    else return (Ident i)
 
 tokenNum :: Lexer Token
 tokenNum = do
@@ -114,25 +119,12 @@ tokenNum = do
 eatSpaces :: Lexer ()
 eatSpaces = do { many (sat isSpace); return () }
 
-tokenSpace :: Token -> String -> Lexer Token
-tokenSpace tok str = do
-    res <- token tok str
-    con <- helper
-    if con then return res
-    else empty
-    where
-        helper :: Lexer Bool
-        helper = do
-            p <- peek
-            return (isSpace p)
-            <|>
-            isEnd
-
 lexToken :: Lexer Token
 lexToken = do
-    tokenSpace Let "let"
-    <|> tokenSpace Fun "fn"
-    <|> tokenSpace Ret "return"
+    tokenIdent
+    <|> token Let "let"
+    <|> token Fun "fn"
+    <|> token Ret "return"
     <|> token Add "+"
     <|> token Sub "-"
     <|> token Mul "*"
@@ -153,7 +145,6 @@ lexToken = do
     <|> token RBrack "}"
     <|> token Comma ","
     <|> token Semi ";"
-    <|> tokenIdent
     <|> tokenNum
 
 lexer :: String -> Either LexError (String, [Token])
