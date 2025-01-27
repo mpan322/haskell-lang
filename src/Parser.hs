@@ -3,6 +3,7 @@ import Control.Applicative
 import qualified Lexer as L
 import Control.Monad.Except
 import Debug.Trace
+import Error
 
 data Data = Int Int
     | Void
@@ -13,45 +14,43 @@ instance Show Data where
     show (Int i) = show i
     show (Bool b) = show b
 
-data ParseError = UnexpectedEOF | BadImpl deriving Show
+data Parser a = Parser { runParser :: [L.Token] -> Either Error ([L.Token], a) }
 
-data Parser a = Parser { parse :: [L.Token] -> Either ParseError ([L.Token], a) }
+parse :: [L.Token] -> Either Error [ASTStmt]
+parse toks = do
+    (rst, out) <- runParser pprog toks 
+    if rst /= [] then Left UnexpectedEOF
+    else return out
+
 
 instance Functor Parser where
-    -- fmap :: (a -> b) -> Parser a -> Parser b
     fmap f p = do
         v <- p
         return (f v)
 
 instance Applicative Parser where
-    -- pure :: a -> Parse a
     pure v = Parser (\s -> Right (s, v))
 
-    -- (<*>) :: Parser (a -> b) -> Parser a -> Parser b
     (<*>) p q = do
         f <- p
         v <- q
         return (f v)
 
 instance Monad Parser where
-    -- return :: a -> Parser a
     return = pure
 
-    -- (>>=) :: Parser a -> (a -> Parser b) -> Parser b
     (>>=) p f = Parser $ \s -> do
-        (s', v) <- parse p s
+        (s', v) <- runParser p s
         let q = f v
-        parse q s'
+        runParser q s'
 
 instance Alternative Parser where
-    -- empty :: Parser a
-    empty = Parser $ \_ -> Left BadImpl
+    empty = Parser $ \_ -> Left $ BadImpl "parser empty"
 
-    -- (<|>) :: Parser a -> Parser a -> Parser a
     (<|>) p q = Parser $ \s -> 
-        case parse p s of
+        case runParser p s of
             Right r -> Right r
-            Left _  -> parse q s
+            Left _  -> runParser q s
 
 next :: Parser L.Token
 next = Parser helper

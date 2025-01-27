@@ -1,0 +1,12 @@
+fn main() {
+    fib(0);
+}
+
+fn fib(x) {
+    if (x < 10) {
+        print(x);
+        fib(x + 1);
+    } else {
+        print(0);
+    };
+}

@@ -2,15 +2,10 @@ module Lexer where
 import Control.Applicative
 import Data.Char
 import qualified Data.Set as S
+import Error
 
 -- metadata about token location in source code for errors
 type TokenData = (Int, Int)
-
-data LexError = 
-    UnknownError
-    | UnknownToken
-    deriving (Show)
-
 data Token = Fun
     | Add
     | Sub
@@ -41,7 +36,7 @@ data Token = Fun
 keywords :: S.Set String
 keywords = S.fromList ["let", "return", "fn", "if", "else", "true", "false"]
 
-newtype Lexer a = Lexer { runLexer :: String -> Either LexError (String, a) }
+newtype Lexer a = Lexer { runLexer :: String -> Either Error (String, a) }
 
 instance Functor Lexer where
     fmap f l = do
@@ -147,8 +142,8 @@ lexToken = do
     <|> token Semi ";"
     <|> tokenNum
 
-lexer :: String -> Either LexError (String, [Token])
-lexer str = runLexer helper str
+lexer :: String -> Either Error [Token]
+lexer str = snd <$> runLexer helper str
     where
         helper = many $ do
             eatSpaces

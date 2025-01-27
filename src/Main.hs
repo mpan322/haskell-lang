@@ -3,37 +3,26 @@ import Parser
 import Lexer
 import Interpreter
 import System.IO
+import Control.Monad
 
-pl :: String -> Either String [ASTStmt]
-pl str =
-    case lexer str of
-        Left e -> Left (show e)
-        Right v -> do
-            case parse pprog (snd v) of
-                Left e -> Left (show e)
-                Right x -> Right (snd x)
+readData :: String -> IO String
+readData name = do
+    hndl <- openFile name ReadMode
+    cnts <- hGetContents hndl
+    return cnts
 
-test :: String -> IO ()
-test n = do
-    let v = pl n
-    case v of
-        Left e  -> putStrLn e
-        Right v -> do
-            putStrLn (show v)
-            r <- evaluate v
-            putStrLn (show r)
-
--- runProg :: String -> Either String [ASTStmt]
--- runProg = do
---     toks <- lexer conts
---     parse
-
--- execProg :: String -> IO ()
--- execProg file = do
---     handle <- openFile file ReadMode
---     conts <- hGetContents handle
---     let lexed = lexer conts >>= parse pprog
---     putStrLn $ show lexed
+runProg :: String -> IO ()
+runProg name = do
+    raw <- readData name
+    let code = pipeline raw
+    case code of
+        Left err -> putStrLn $ show err
+        Right co -> do
+            evaluate co
+            return ()
+    return ()
+    where
+        pipeline = lexer >=> parse
 
 main :: IO ()
 main = do

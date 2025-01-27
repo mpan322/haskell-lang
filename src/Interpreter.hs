@@ -5,23 +5,10 @@ import Control.Monad.Except
 import Control.Applicative
 import Data.Maybe
 import Parser
+import Error
 
 -- frame has local variable and local function table
-
-data EvalError = UnknownVariable String
-    | IncorrectType String
-    | IncorrectNumberOfArgs
-    | NoSuchVariable String
-    | NoSuchFunction String
-    | BadValue String
-    | NoMainFunc
-    | IllegalGlobal
-    | CannotCallValue
-    | BadImplementation String
-    | DuplicateBinding String
-    | IllegalStatement String
-    deriving Show
-
+--
 type Frame = M.Map String Data
 
 initFrame :: Frame
@@ -34,7 +21,7 @@ initState = EvalState {
     env     = (initFrame, []),
     store   = [] }
 
-evaluate :: [ASTStmt] -> IO (Either EvalError ())
+evaluate :: [ASTStmt] -> IO (Either Error ())
 evaluate prog = evalStateT (runExceptT $ eval prog) initState
 
 data EvalState = EvalState {
@@ -44,7 +31,7 @@ data EvalState = EvalState {
     store :: [(Frame, [Frame])]
 }
 
-type Eval a = ExceptT EvalError (StateT EvalState IO) a
+type Eval a = ExceptT Error (StateT EvalState IO) a
 
 pushFrame :: Eval ()
 pushFrame = do
@@ -55,7 +42,7 @@ popFrame :: Eval ()
 popFrame = do
     (f, fs) <- gets env
     case fs of
-        []   -> throwError $ BadImplementation "pop from empty environment"
+        []   -> throwError $ BadImpl "pop from singleton environment"
         r:rs -> modify $ \s -> s { env = (r, rs) }
 
 startEnv :: Eval ()
@@ -69,7 +56,7 @@ closeEnv :: Eval ()
 closeEnv = do
     sto <- gets store
     case sto of
-        []   -> throwError $ BadImplementation "restore when no env"
+        []   -> throwError $ BadImpl "restore when no env"
         r:rs -> modify $ \s -> s { env = r, store = rs }
 
 getFrame :: Eval Frame
@@ -97,7 +84,7 @@ getVar var = do
     gs <- gets globals
     let m = M.lookup var f <|> _getVar var fs <|> M.lookup var gs
     case m of
-        Nothing -> throwError $ NoSuchVariable var
+        Nothing -> throwError $ NoSuchVar var
         Just da -> return da
     where
         _getVar :: String -> [Frame] -> Maybe Data
@@ -108,7 +95,7 @@ getFunc n = do
     fns <- gets funcs
     case M.lookup n fns of
         Just v  -> return v
-        Nothing -> throwError $ NoSuchFunction n
+        Nothing -> throwError $ NoSuchFunc n
 
 getMain :: Eval [ASTStmt]
 getMain = do
@@ -144,7 +131,7 @@ setVar var dat = do
         modifyStack (\_ -> fs')
     where
         helper :: String -> Data -> [Frame] -> Eval [Frame]
-        helper var _ []       = throwError $ NoSuchVariable var
+        helper var _ []       = throwError $ NoSuchVar var
         helper var dat (f:fs) =
             if M.member var f then 
                 let f' = M.insert var dat f in
@@ -228,7 +215,7 @@ evalBody (x:xs) =
                     if isNothing r then evalBody xs
                     else return r
                 _ -> throwError $ BadValue "if conditions must be booleans"
-        _ -> throwError $ BadImplementation "statement not implemented"
+        _ -> throwError $ BadImpl "statement not implemented"
 
 binary :: (a -> a -> b) -> (Data -> Eval a) -> (b -> Data) -> ASTExpr -> ASTExpr -> Eval Data
 binary f unwrap cons l r = do
@@ -247,16 +234,15 @@ binaryBool f l r = binary f unwrapBool Bool l r
 
 unwrapInt :: Data -> Eval Int
 unwrapInt (Int v) = return v
-unwrapInt _ = throwError $ BadImplementation "int expected"
+unwrapInt _ = throwError $ BadImpl "int expected"
 
 unwrapBool :: Data -> Eval Bool
 unwrapBool (Bool v) = return v
-unwrapBool _ = throwError $ BadImplementation "bool expected"
+unwrapBool _ = throwError $ BadImpl "bool expected"
 
 evalExpr :: ASTExpr -> Eval Data
 evalExpr (Add l r) = binaryInt (+) l r
 evalExpr (Sub l r) = binaryInt (-) l r
-evalExpr (Mul l r) = binaryInt (*) l r
 evalExpr (Eq l r) = binaryCmp (==) l r
 evalExpr (Lt l r) = binaryCmp (<) l r
 evalExpr (Gt l r) = binaryCmp (>) l r
