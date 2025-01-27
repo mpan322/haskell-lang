@@ -145,9 +145,9 @@ setVar var dat = do
     where
         helper :: String -> Data -> [Frame] -> Eval [Frame]
         helper var _ []       = throwError $ NoSuchVariable var
-        helper var dat (f:fs) = 
+        helper var dat (f:fs) =
             if M.member var f then 
-                let f' = M.insert var dat f' in
+                let f' = M.insert var dat f in
                 return (f':fs)
             else do
                 fs' <- helper var dat fs
@@ -191,6 +191,11 @@ evalCall name params = do
     closeEnv
     return (fromMaybe Void ret)
 
+dumpEnv :: Eval ()
+dumpEnv = do
+    env <- gets env
+    liftIO $ putStrLn (show env)
+
 evalBody :: [ASTStmt] -> Eval (Maybe Data)
 evalBody []     = return Nothing
 evalBody (x:xs) =
@@ -210,8 +215,18 @@ evalBody (x:xs) =
         IfStmt c ifs els -> do
             v <- evalExpr c
             case v of
-                Bool True -> evalBody ifs
-                Bool False -> evalBody els
+                Bool True -> do
+                    pushFrame
+                    r <- evalBody ifs
+                    popFrame
+                    if isNothing r then evalBody xs
+                    else return r
+                Bool False -> do
+                    pushFrame
+                    r <- evalBody els
+                    popFrame
+                    if isNothing r then evalBody xs
+                    else return r
                 _ -> throwError $ BadValue "if conditions must be booleans"
         _ -> throwError $ BadImplementation "statement not implemented"
 
