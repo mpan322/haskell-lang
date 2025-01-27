@@ -1,8 +1,12 @@
 module Parser where
 import Control.Applicative
-import Data.Char
 import qualified Lexer as L
 import Debug.Trace
+
+data Data = Int Int
+    | Void
+    | Bool Bool
+
 
 data Parser a = Parser { parse :: [L.Token] -> Maybe ([L.Token], a) }
 
@@ -64,6 +68,7 @@ data ASTStmt = FunStmt String [String] [ASTStmt]
     | LetStmt String ASTExpr
     | AssignStmt String ASTExpr
     | RetStmt ASTExpr
+    | IfStmt ASTExpr [ASTStmt] [ASTStmt]
     | CallStmt String [ASTExpr] deriving Show
 
 data ASTExpr = VarExpr String
@@ -71,10 +76,18 @@ data ASTExpr = VarExpr String
     | Add ASTExpr ASTExpr
     | Mul ASTExpr ASTExpr
     | Sub ASTExpr ASTExpr
+    | Eq ASTExpr ASTExpr
+    | Lt ASTExpr ASTExpr
+    | Gt ASTExpr ASTExpr
     | CallExpr String [ASTExpr] deriving Show
 
 pprog :: Parser [ASTStmt]
-pprog = many pfunDecl
+pprog = many (pfunDecl <|> helper)
+    where 
+        helper = do
+            l <- plet
+            eq L.Semi
+            return l
 
 pfunDecl :: Parser ASTStmt
 pfunDecl = do
@@ -131,11 +144,25 @@ pstatement = do
     pcallStmt
     <|>
     passign
+    <|>
+    pif
+
+pif :: Parser ASTStmt
+pif = do
+    eq L.If
+    eq L.LParen
+    e <- pexpr
+    eq L.RParen
+    bif <- pbody
+    eq L.Else
+    belse <- pbody
+    return $ IfStmt e bif belse
+
 
 passign :: Parser ASTStmt
 passign = do
     i <- pident
-    eq L.Equ
+    eq L.Asgn
     e <- pexpr
     return (AssignStmt i e)
 
@@ -143,7 +170,7 @@ plet :: Parser ASTStmt
 plet = do
     eq L.Let
     name <- pident
-    eq L.Equ
+    eq L.Asgn
     e <- pexpr
     return (LetStmt name e)
 
@@ -176,43 +203,37 @@ pparamExprs = do
 
 pexpr :: Parser ASTExpr
 pexpr = do
+    s <- psum
+    foldr (\a b -> b <|> a s) empty [return, peq, plt, pgt]
+    where
+        peq t  = do { eq L.Equ; e <- pexpr; return $ Eq t e }
+        plt t  = do { eq L.Lt; e <- pexpr; return $ Lt t e }
+        pgt t  = do { eq L.Gt; e <- pexpr; return $ Gt t e }
+
+psum :: Parser ASTExpr
+psum = do
     t <- pterm
-    do
-        eq L.Add
-        e <- pexpr
-        return (Add t e)
-        <|>
-        do
-            eq L.Sub
-            e <- pexpr
-            return (Sub t e)
-            <|>
-            return t
+    foldr (\a b -> b <|> a t) empty [return, padd, psub]
+    where
+        padd t = do { eq L.Add; e <- psum; return $ Add t e }
+        psub t = do { eq L.Sub; e <- psum; return $ Sub t e }
 
 pterm :: Parser ASTExpr
 pterm = do
     b <- pbase
-    do eq L.Mul
-       e <- pexpr
-       return (Mul b e)
-       <|>
-       return b
+    foldr (\a c -> c <|> a b) empty [return, pmul]
+    where
+        pmul b = do { eq L.Mul; e <- pexpr; return (Mul b e) }
 
 pbase :: Parser ASTExpr
 pbase = do
-    name <- pident
-    params <- pparamExprs
-    return (CallExpr name params)
+    pcall
     <|>
-    do
-        num <- pnum 
-        return (ConstExpr num)
-        <|>
-        do
-            name <- pident
-            return (VarExpr name)
-
-
-
-
+    pvar
+    <|>
+    pconst
+    where
+        pvar   = do { n <- pident; return $ VarExpr n }
+        pconst = do { n <- pnum; return $ ConstExpr n }
+        pcall  = do { n <- pident; ps <- pparamExprs; return $ CallExpr n ps }
 

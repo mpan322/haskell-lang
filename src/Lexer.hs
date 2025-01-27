@@ -15,9 +15,19 @@ data Token = Fun
     | Sub
     | Mul
     | Let
+    | Asgn
+    | Lt 
+    | Gt
     | Equ
+    | Or
+    | And
+    | Not
+    | If
+    | Else
     | Ret
     | Ident String
+    | TTrue
+    | TFalse
     | Num String
     | LParen
     | RParen
@@ -121,12 +131,22 @@ tokenSpace tok str = do
 lexToken :: Lexer Token
 lexToken = do
     tokenSpace Let "let"
-    <|> tokenSpace Fun "fun"
+    <|> tokenSpace Fun "fn"
     <|> tokenSpace Ret "return"
     <|> token Add "+"
     <|> token Sub "-"
     <|> token Mul "*"
-    <|> token Equ "="
+    <|> token Asgn ":="
+    <|> token If "if"
+    <|> token Else "else"
+    <|> token Equ "=="
+    <|> token Lt "<"
+    <|> token Gt ">"
+    <|> token Not "!"
+    <|> token And "&&"
+    <|> token TTrue "true"
+    <|> token TFalse "false"
+    <|> token Or "||"
     <|> token LParen "("
     <|> token RParen ")"
     <|> token LBrack "{"

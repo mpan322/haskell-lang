@@ -8,9 +8,6 @@ import Parser
 
 -- frame has local variable and local function table
 
-data Data = Int Int
-    | Void
-
 data EvalError = UnknownVariable String
     | IncorrectType String
     | IncorrectNumberOfArgs
@@ -55,7 +52,7 @@ type Eval a = ExceptT EvalError (StateT EvalState IO) a
 pushFrame :: Eval ()
 pushFrame = do
     (f, fs) <- gets env
-    modify (\s -> s { env = (initFrame, f:fs) })
+    modify $ \s -> s { env = (initFrame, f:fs) }
 
 popFrame :: Eval ()
 popFrame = do
