@@ -13,6 +13,7 @@ data EvalError = UnknownVariable String
     | IncorrectNumberOfArgs
     | NoSuchVariable String
     | NoSuchFunction String
+    | BadValue String
     | NoMainFunc
     | IllegalGlobal
     | CannotCallValue
@@ -20,10 +21,6 @@ data EvalError = UnknownVariable String
     | DuplicateBinding String
     | IllegalStatement String
     deriving Show
-
-instance Show Data where
-    show Void = "void"
-    show (Int i) = show i
 
 type Frame = M.Map String Data
 
@@ -210,25 +207,51 @@ evalBody (x:xs) =
         CallStmt n p -> do
             evalCall n p
             evalBody xs
+        IfStmt c ifs els -> do
+            v <- evalExpr c
+            case v of
+                Bool True -> evalBody ifs
+                Bool False -> evalBody els
+                _ -> throwError $ BadValue "if conditions must be booleans"
         _ -> throwError $ BadImplementation "statement not implemented"
 
-binary :: (Int -> Int -> Int) -> ASTExpr -> ASTExpr -> Eval Data
-binary f l r = do
-    lv <- evalExpr l >>= unwrapInt
-    rv <- evalExpr r >>= unwrapInt
-    return $ Int $ f lv rv
-    where 
-        unwrapInt :: Data -> Eval Int
-        unwrapInt (Int v) = return v
-        unwrapInt _ = throwError $ BadImplementation "int expected"
+binary :: (a -> a -> b) -> (Data -> Eval a) -> (b -> Data) -> ASTExpr -> ASTExpr -> Eval Data
+binary f unwrap cons l r = do
+    lv <- evalExpr l >>= unwrap
+    rv <- evalExpr r >>= unwrap
+    return $ cons $ f lv rv
+
+binaryCmp :: (Int -> Int -> Bool) -> ASTExpr -> ASTExpr -> Eval Data
+binaryCmp f l r = binary f unwrapInt Bool l r
+
+binaryInt :: (Int -> Int -> Int) -> ASTExpr -> ASTExpr -> Eval Data
+binaryInt f l r = binary f unwrapInt Int l r
+
+binaryBool :: (Bool -> Bool -> Bool) -> ASTExpr -> ASTExpr -> Eval Data
+binaryBool f l r = binary f unwrapBool Bool l r
+
+unwrapInt :: Data -> Eval Int
+unwrapInt (Int v) = return v
+unwrapInt _ = throwError $ BadImplementation "int expected"
+
+unwrapBool :: Data -> Eval Bool
+unwrapBool (Bool v) = return v
+unwrapBool _ = throwError $ BadImplementation "bool expected"
 
 evalExpr :: ASTExpr -> Eval Data
-evalExpr (Add l r) = binary (+) l r
-evalExpr (Sub l r) = binary (-) l r
-evalExpr (Mul l r) = binary (*) l r
-evalExpr (ConstExpr v) = return $ Int $ read v
+evalExpr (Add l r) = binaryInt (+) l r
+evalExpr (Sub l r) = binaryInt (-) l r
+evalExpr (Mul l r) = binaryInt (*) l r
+evalExpr (Eq l r) = binaryCmp (==) l r
+evalExpr (Lt l r) = binaryCmp (<) l r
+evalExpr (Gt l r) = binaryCmp (>) l r
+evalExpr (And l r) = binaryBool (&&) l r
+evalExpr (Or l r) = binaryBool (||) l r
+evalExpr (ConstExpr v) = return v
 evalExpr (CallExpr n ps) = evalCall n ps
 evalExpr (VarExpr n) = getVar n
+
+
 
 
 

@@ -7,6 +7,10 @@ data Data = Int Int
     | Void
     | Bool Bool
 
+instance Show Data where
+    show Void = "void"
+    show (Int i) = show i
+    show (Bool b) = show b
 
 data Parser a = Parser { parse :: [L.Token] -> Maybe ([L.Token], a) }
 
@@ -72,13 +76,16 @@ data ASTStmt = FunStmt String [String] [ASTStmt]
     | CallStmt String [ASTExpr] deriving Show
 
 data ASTExpr = VarExpr String
-    | ConstExpr String
+    | ConstExpr Data
     | Add ASTExpr ASTExpr
     | Mul ASTExpr ASTExpr
     | Sub ASTExpr ASTExpr
     | Eq ASTExpr ASTExpr
     | Lt ASTExpr ASTExpr
     | Gt ASTExpr ASTExpr
+    | And ASTExpr ASTExpr
+    | Or ASTExpr ASTExpr
+    | Not ASTExpr
     | CallExpr String [ASTExpr] deriving Show
 
 pprog :: Parser [ASTStmt]
@@ -234,6 +241,20 @@ pbase = do
     pconst
     where
         pvar   = do { n <- pident; return $ VarExpr n }
-        pconst = do { n <- pnum; return $ ConstExpr n }
         pcall  = do { n <- pident; ps <- pparamExprs; return $ CallExpr n ps }
+
+
+pconst :: Parser ASTExpr
+pconst = do
+    pbool
+    <|>
+    pnumc
+    where
+        pbool = do { eq L.TTrue; return $ ConstExpr $ Bool True }
+            <|> do { eq L.TFalse; return $ ConstExpr $ Bool False }
+        pnumc = do
+            n <- pnum
+            return $ ConstExpr $ Int (read n)
+
+
 
