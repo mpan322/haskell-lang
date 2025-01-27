@@ -1,6 +1,7 @@
 module Parser where
 import Control.Applicative
 import qualified Lexer as L
+import Control.Monad.Except
 import Debug.Trace
 
 data Data = Int Int
@@ -12,7 +13,9 @@ instance Show Data where
     show (Int i) = show i
     show (Bool b) = show b
 
-data Parser a = Parser { parse :: [L.Token] -> Maybe ([L.Token], a) }
+data ParseError = UnexpectedEOF | BadImpl deriving Show
+
+data Parser a = Parser { parse :: [L.Token] -> Either ParseError ([L.Token], a) }
 
 instance Functor Parser where
     -- fmap :: (a -> b) -> Parser a -> Parser b
@@ -22,7 +25,7 @@ instance Functor Parser where
 
 instance Applicative Parser where
     -- pure :: a -> Parse a
-    pure v = Parser (\s -> Just (s, v))
+    pure v = Parser (\s -> Right (s, v))
 
     -- (<*>) :: Parser (a -> b) -> Parser a -> Parser b
     (<*>) p q = do
@@ -42,19 +45,19 @@ instance Monad Parser where
 
 instance Alternative Parser where
     -- empty :: Parser a
-    empty = Parser $ \_ -> Nothing
+    empty = Parser $ \_ -> Left BadImpl
 
     -- (<|>) :: Parser a -> Parser a -> Parser a
     (<|>) p q = Parser $ \s -> 
         case parse p s of
-            Just r  -> Just r
-            Nothing -> parse q s
+            Right r -> Right r
+            Left _  -> parse q s
 
 next :: Parser L.Token
 next = Parser helper
     where 
-        helper []     = Nothing
-        helper (x:xs) = Just (xs, x)
+        helper []     = Left UnexpectedEOF
+        helper (x:xs) = Right (xs, x)
 
 sat :: (L.Token -> Bool) -> Parser L.Token
 sat p = do

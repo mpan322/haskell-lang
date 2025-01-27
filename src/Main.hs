@@ -2,15 +2,16 @@ module Main where
 import Parser
 import Lexer
 import Interpreter
+import System.IO
 
 pl :: String -> Either String [ASTStmt]
-pl str = 
+pl str =
     case lexer str of
         Left e -> Left (show e)
         Right v -> do
             case parse pprog (snd v) of
-                Nothing -> Left "failed to parse"
-                Just x  -> Right (snd x)
+                Left e -> Left (show e)
+                Right x -> Right (snd x)
 
 test :: String -> IO ()
 test n = do
@@ -21,6 +22,18 @@ test n = do
             putStrLn (show v)
             r <- evaluate v
             putStrLn (show r)
+
+-- runProg :: String -> Either String [ASTStmt]
+-- runProg = do
+--     toks <- lexer conts
+--     parse
+
+-- execProg :: String -> IO ()
+-- execProg file = do
+--     handle <- openFile file ReadMode
+--     conts <- hGetContents handle
+--     let lexed = lexer conts >>= parse pprog
+--     putStrLn $ show lexed
 
 main :: IO ()
 main = do
